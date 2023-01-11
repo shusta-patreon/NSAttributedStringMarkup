@@ -10,7 +10,7 @@
 
 NS_ASSUME_NONNULL_BEGIN
 
-typedef NSDictionary<NSAttributedStringKey, id> *_Nullable (^TJFormattingCustomizerBlock)(NSString *const tag, NSDictionary<NSAttributedStringKey, id> *attributes);
+typedef NSDictionary<NSAttributedStringKey, id> *_Nullable (^TJFormattingCustomizerBlock)(NSString *const tag, NSString *_Nullable const htmlAttrValue, NSDictionary<NSAttributedStringKey, id> *attributes);
 @interface NSAttributedString (TJFormatting)
 
 /**

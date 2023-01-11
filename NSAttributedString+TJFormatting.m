@@ -29,9 +29,11 @@ __attribute__((objc_direct_members))
                                  customizerBlock:(TJFormattingCustomizerBlock)block
 {
     static NSRegularExpression *regex;
+    static NSRegularExpression *htmlAttrRegex;
     static dispatch_once_t onceToken;
     dispatch_once(&onceToken, ^{
-        regex = [NSRegularExpression regularExpressionWithPattern:@"<(.*?)>(.*?)</\\1>" options:NSRegularExpressionDotMatchesLineSeparators error:nil];
+        regex = [NSRegularExpression regularExpressionWithPattern:@"<(.*?)\\S*?(.*?)>(.*?)</\\1>" options:NSRegularExpressionDotMatchesLineSeparators error:nil];
+        htmlAttrRegex = [NSRegularExpression regularExpressionWithPattern:@"\"([^\"]+)\"" options:NSRegularExpressionDotMatchesLineSeparators error:nil];
     });
     
     NSMutableAttributedString *const mutableAttributedString = markupString ? [[NSMutableAttributedString alloc] initWithString:markupString attributes:attributes] : nil;
@@ -45,14 +47,21 @@ __attribute__((objc_direct_members))
         continueLooping = NO;
         for (NSTextCheckingResult *const result in [[regex matchesInString:underlyingString options:0 range:NSMakeRange(0, underlyingStringLength)] reverseObjectEnumerator]) {
             NSString *const parsedTag = [underlyingString substringWithRange:[result rangeAtIndex:1]];
-            const NSRange textRange = [result rangeAtIndex:2];
+            const NSRange attributeRange = [result rangeAtIndex: 2];
+            NSString *htmlAttrValue = nil;
+            if (attributeRange.length > 0) {
+                NSString *const htmlAttr = [underlyingString substringWithRange:attributeRange];
+                NSTextCheckingResult *const htmlAttrMatch = [htmlAttrRegex firstMatchInString:htmlAttr options:0 range:NSMakeRange(0, htmlAttr.length)];
+                htmlAttrValue = [htmlAttr substringWithRange:[htmlAttrMatch rangeAtIndex:1]];
+            }
+            const NSRange textRange = [result rangeAtIndex:3];
             const NSRange fullRange = result.range;
             if (supportNesting) {
                 // Apply attributes if needed
                 [mutableAttributedString enumerateAttributesInRange:textRange
                                                             options:0
                                                          usingBlock:^(NSDictionary<NSAttributedStringKey,id> * _Nonnull subrangeAttributes, NSRange subrange, BOOL * _Nonnull stop) {
-                    NSDictionary *const customizedAttributes = block(parsedTag, subrangeAttributes);
+                    NSDictionary *const customizedAttributes = block(parsedTag, htmlAttrValue, subrangeAttributes);
                     if (customizedAttributes.count) {
                         [mutableAttributedString addAttributes:customizedAttributes range:subrange];
                     }
@@ -66,7 +75,7 @@ __attribute__((objc_direct_members))
                 continueLooping = YES;
             } else {
                 NSString *const text = [underlyingString substringWithRange:textRange];
-                NSDictionary<NSAttributedStringKey, id> *const customizedAttributes = block(parsedTag, attributes);
+                NSDictionary<NSAttributedStringKey, id> *const customizedAttributes = block(parsedTag, htmlAttrValue, attributes);
                 if (customizedAttributes.count) {
                     // Apply attributes if needed
                     NSMutableDictionary<NSAttributedStringKey, id> *const mutableAttributes = [NSMutableDictionary dictionaryWithDictionary:attributes];
